@@ -145,6 +145,8 @@ group.add_argument('--no_flash_attn', action='store_true', help='Force flash-att
 group.add_argument('--cache_8bit', action='store_true', help='Use 8-bit cache to save VRAM.')
 group.add_argument('--cache_4bit', action='store_true', help='Use Q4 cache to save VRAM.')
 group.add_argument('--num_experts_per_token', type=int, default=2, help='Number of experts to use for generation. Applies to MoE models like Mixtral.')
+group.add_argument('--franken_layers', type=str, help='Layer patter for the self-FrankenMerge. Tuple of tuple-pairs, with dashes replacing commas. Example: ((0-10)-(5-15)-(10-20)).')
+
 
 # AutoGPTQ
 group = parser.add_argument_group('AutoGPTQ')

@@ -106,7 +106,15 @@ class Exllamav2Model:
 
     def generate_with_streaming(self, prompt, state):
 
+        print("Here now!!!!")
+
+
         franken_layers = state.get('franken_layers', None)
+
+        num_layers = int((len(self.orig_modules) - 3) / 2)
+
+        print(num_layers)
+        print(self._franken_layers, franken_layers)
         if self._franken_layers != franken_layers:
 
             # franken_layers looks like this: "((1-10)-(5-15))"
