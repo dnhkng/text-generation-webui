@@ -105,24 +105,17 @@ class Exllamav2Model:
         return self.model.forward(token_ids[:, -1:], self.cache, input_mask=None, loras=self.loras, **kwargs).float().cpu()
 
     def generate_with_streaming(self, prompt, state):
-
-        print("Here now!!!!")
-
-
-        franken_layers = state.get('franken_layers', None)
-
+        franken_layers = shared.args.franken_layers
         num_layers = int((len(self.orig_modules) - 3) / 2)
 
-        print(num_layers)
-        print(self._franken_layers, franken_layers)
         if self._franken_layers != franken_layers:
-
             # franken_layers looks like this: "((1-10)-(5-15))"
             # there are no commas, as the parser in EQ-Bench splits on commas
             layers = eval(franken_layers.replace("-", ","))
             layers = sum([list(range(start, end)) for start, end in layers], [])
 
             print(f'Changing franken-_layers from {self._franken_layers} to {franken_layers}')
+            print(f'{layers=}')
             self._franken_layers = franken_layers
 
             num_layers = int((len(self.orig_modules) - 3) / 2)
