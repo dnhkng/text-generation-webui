@@ -101,6 +101,7 @@ loaders_and_params = OrderedDict({
         'autosplit',
         'alpha_value',
         'compress_pos_emb',
+        'franken_layers',
         'exllamav2_info',
     ],
     'AutoGPTQ': [
@@ -213,6 +214,7 @@ loaders_samplers = {
         'custom_token_bans',
         'skip_special_tokens',
         'auto_max_new_tokens',
+        'franken_layers',
     },
     'ExLlamav2_HF': {
         'temperature',

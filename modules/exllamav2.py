@@ -1,5 +1,6 @@
 import traceback
 from pathlib import Path
+import copy
 
 import torch
 from exllamav2 import (
@@ -78,6 +79,11 @@ class Exllamav2Model:
         result.tokenizer = tokenizer
         result.generator = generator
         result.loras = None
+
+        # New attributes
+        result.orig_modules = model.modules
+        result._franken_layers = None
+
         return result, result
 
     def encode(self, string, **kwargs):
@@ -99,6 +105,40 @@ class Exllamav2Model:
         return self.model.forward(token_ids[:, -1:], self.cache, input_mask=None, loras=self.loras, **kwargs).float().cpu()
 
     def generate_with_streaming(self, prompt, state):
+
+        franken_layers = state.get('franken_layers', None)
+        if self._franken_layers != franken_layers:
+
+            # franken_layers looks like this: "((1-10)-(5-15))"
+            # there are no commas, as the parser in EQ-Bench splits on commas
+            layers = eval(franken_layers.replace("-", ","))
+            layers = sum([list(range(start, end)) for start, end in layers], [])
+
+            print(f'Changing franken-_layers from {self._franken_layers} to {franken_layers}')
+            self._franken_layers = franken_layers
+
+            num_layers = int((len(self.orig_modules) - 3) / 2)
+
+            self.model.modules = self.orig_modules[:1]
+            for i, idx in enumerate(layers):
+                nextModule = copy.copy(self.orig_modules[idx*2 + 1])
+                nextModule.layer_idx = i
+                self.model.modules.append(nextModule)
+                self.model.modules.append(self.orig_modules[idx*2 + 2])
+            self.model.modules += self.orig_modules[-2:]
+            num_layers = int((len(self.model.modules) - 3) / 2)
+            self.model.head_layer_idx = len(self.model.modules) -1
+            self.model.config.num_hidden_layers = num_layers
+            self.model.last_kv_layer_idx = len(self.model.modules) -4
+            cache_class = type(self.cache)
+            del self.generator
+            del self.cache
+            print('Re-creating cache')
+            self.model.cache_map = {}
+            self.model.set_cache_map()
+            self.cache = cache_class(self.model)
+            self.generator = ExLlamaV2StreamingGenerator(self.model, self.cache, self.tokenizer)
+
         settings = ExLlamaV2Sampler.Settings()
 
         settings.token_repetition_penalty = state['repetition_penalty']
