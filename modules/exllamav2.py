@@ -1,6 +1,6 @@
+import copy
 import traceback
 from pathlib import Path
-import copy
 
 import torch
 from exllamav2 import (
@@ -9,7 +9,7 @@ from exllamav2 import (
     ExLlamaV2Cache_8bit,
     ExLlamaV2Cache_Q4,
     ExLlamaV2Config,
-    ExLlamaV2Tokenizer
+    ExLlamaV2Tokenizer,
 )
 from exllamav2.generator import ExLlamaV2Sampler, ExLlamaV2StreamingGenerator
 
@@ -74,16 +74,13 @@ class Exllamav2Model:
         generator = ExLlamaV2StreamingGenerator(model, cache, tokenizer)
 
         result = self()
+        result.orig_modules = model.modules
+        result._frankenrepeat = '00'
         result.model = model
         result.cache = cache
         result.tokenizer = tokenizer
         result.generator = generator
         result.loras = None
-
-        # New attributes
-        result.orig_modules = model.modules
-        result._franken_layers = None
-
         return result, result
 
     def encode(self, string, **kwargs):
@@ -105,19 +102,19 @@ class Exllamav2Model:
         return self.model.forward(token_ids[:, -1:], self.cache, input_mask=None, loras=self.loras, **kwargs).float().cpu()
 
     def generate_with_streaming(self, prompt, state):
+        start = int(state.get('franken_start', 0))
+        stop = int(state.get('franken_stop', 0))
 
-        franken_layers = state.get('franken_layers', None)
-        if self._franken_layers != franken_layers:
+        repeats = state.get('franken_repeats', 0)
 
-            # franken_layers looks like this: "((1-10)-(5-15))"
-            # there are no commas, as the parser in EQ-Bench splits on commas
-            layers = eval(franken_layers.replace("-", ","))
-            layers = sum([list(range(start, end)) for start, end in layers], [])
-
-            print(f'Changing franken-_layers from {self._franken_layers} to {franken_layers}')
-            self._franken_layers = franken_layers
+        frankenrepeat = f'{start}{stop}{repeats}'
+        if self._frankenrepeat != frankenrepeat:
+            print(f'Changing frankenrepeat from {self._frankenrepeat} to {frankenrepeat}')
+            self._frankenrepeat = frankenrepeat
 
             num_layers = int((len(self.orig_modules) - 3) / 2)
+
+            layers = list(range(stop)) + int(repeats)*(list(range(start,stop))) + list(range(stop,num_layers))
 
             self.model.modules = self.orig_modules[:1]
             for i, idx in enumerate(layers):

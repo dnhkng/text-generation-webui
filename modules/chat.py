@@ -125,7 +125,7 @@ def generate_chat_prompt(user_input, state, **kwargs):
         messages.append({"role": "user", "content": user_input})
 
     def remove_extra_bos(prompt):
-        for bos_token in ['<s>', '<|startoftext|>', '<BOS_TOKEN>', '<|endoftext|>']:
+        for bos_token in ['<s>', '<|startoftext|>']:
             while prompt.startswith(bos_token):
                 prompt = prompt[len(bos_token):]
 
@@ -161,14 +161,12 @@ def generate_chat_prompt(user_input, state, **kwargs):
 
             prompt = instruction_template.render(messages=outer_messages)
             suffix = get_generation_prompt(instruct_renderer, impersonate=False)[1]
-            if len(suffix) > 0:
-                prompt = prompt[:-len(suffix)]
+            prompt = prompt[:-len(suffix)]
 
         else:
             if _continue:
                 suffix = get_generation_prompt(renderer, impersonate=impersonate)[1]
-                if len(suffix) > 0:
-                    prompt = prompt[:-len(suffix)]
+                prompt = prompt[:-len(suffix)]
             else:
                 prefix = get_generation_prompt(renderer, impersonate=impersonate)[0]
                 if state['mode'] == 'chat' and not impersonate:
@@ -308,6 +306,9 @@ def chatbot_wrapper(text, state, regenerate=False, _continue=False, loading_mess
                     'internal': output['internal']
                 }
 
+    if shared.model_name == 'None' or shared.model is None:
+        raise ValueError("No model is loaded! Select one in the Model tab.")
+
     # Generate the prompt
     kwargs = {
         '_continue': _continue,
@@ -351,6 +352,11 @@ def chatbot_wrapper(text, state, regenerate=False, _continue=False, loading_mess
 def impersonate_wrapper(text, state):
 
     static_output = chat_html_wrapper(state['history'], state['name1'], state['name2'], state['mode'], state['chat_style'], state['character_menu'])
+
+    if shared.model_name == 'None' or shared.model is None:
+        logger.error("No model is loaded! Select one in the Model tab.")
+        yield '', static_output
+        return
 
     prompt = generate_chat_prompt('', state, impersonate=True)
     stopping_strings = get_stopping_strings(state)
