@@ -73,17 +73,51 @@ class Exllamav2Model:
         tokenizer = ExLlamaV2Tokenizer(config)
         generator = ExLlamaV2StreamingGenerator(model, cache, tokenizer)
 
+        orig_modules = model.modules
+        franken_layers = shared.args.franken_layers
+        
+        num_layers = int((len(orig_modules) - 3) / 2)
+        
+        print(f'{num_layers=}')
+        print(f'{franken_layers=}')
+
+        if franken_layers:
+            # franken_layers looks like this: "((1-10)-(5-15))"
+            # there are no commas, as the parser in EQ-Bench splits on commas
+            layers = eval(franken_layers.replace("-", ","))
+            layers = sum([list(range(start, end)) for start, end in layers], [])
+
+            print(f'New {layers=}')
+
+            num_layers = int((len(orig_modules) - 3) / 2)
+
+            model.modules = orig_modules[:1]
+            for i, idx in enumerate(layers):
+                nextModule = copy.copy(orig_modules[idx*2 + 1])
+                nextModule.layer_idx = i
+                model.modules.append(nextModule)
+                model.modules.append(orig_modules[idx*2 + 2])
+            model.modules += orig_modules[-2:]
+            num_layers = int((len(model.modules) - 3) / 2)
+            model.head_layer_idx = len(model.modules) -1
+            model.config.num_hidden_layers = num_layers
+            model.last_kv_layer_idx = len(model.modules) -4
+            cache_class = type(cache)
+            del generator
+            del cache
+            print('Re-creating cache')
+            model.cache_map = {}
+            model.set_cache_map()
+            cache = cache_class(model)
+            generator = ExLlamaV2StreamingGenerator(model, cache, tokenizer)
+
+
         result = self()
         result.model = model
         result.cache = cache
         result.tokenizer = tokenizer
         result.generator = generator
         result.loras = None
-
-        # New attributes
-        result.orig_modules = model.modules
-        result._franken_layers = None
-
         return result, result
 
     def encode(self, string, **kwargs):
@@ -105,41 +139,6 @@ class Exllamav2Model:
         return self.model.forward(token_ids[:, -1:], self.cache, input_mask=None, loras=self.loras, **kwargs).float().cpu()
 
     def generate_with_streaming(self, prompt, state):
-        franken_layers = shared.args.franken_layers
-        num_layers = int((len(self.orig_modules) - 3) / 2)
-
-        if self._franken_layers != franken_layers:
-            # franken_layers looks like this: "((1-10)-(5-15))"
-            # there are no commas, as the parser in EQ-Bench splits on commas
-            layers = eval(franken_layers.replace("-", ","))
-            layers = sum([list(range(start, end)) for start, end in layers], [])
-
-            print(f'Changing franken-_layers from {self._franken_layers} to {franken_layers}')
-            print(f'{layers=}')
-            self._franken_layers = franken_layers
-
-            num_layers = int((len(self.orig_modules) - 3) / 2)
-
-            self.model.modules = self.orig_modules[:1]
-            for i, idx in enumerate(layers):
-                nextModule = copy.copy(self.orig_modules[idx*2 + 1])
-                nextModule.layer_idx = i
-                self.model.modules.append(nextModule)
-                self.model.modules.append(self.orig_modules[idx*2 + 2])
-            self.model.modules += self.orig_modules[-2:]
-            num_layers = int((len(self.model.modules) - 3) / 2)
-            self.model.head_layer_idx = len(self.model.modules) -1
-            self.model.config.num_hidden_layers = num_layers
-            self.model.last_kv_layer_idx = len(self.model.modules) -4
-            cache_class = type(self.cache)
-            del self.generator
-            del self.cache
-            print('Re-creating cache')
-            self.model.cache_map = {}
-            self.model.set_cache_map()
-            self.cache = cache_class(self.model)
-            self.generator = ExLlamaV2StreamingGenerator(self.model, self.cache, self.tokenizer)
-
         settings = ExLlamaV2Sampler.Settings()
 
         settings.token_repetition_penalty = state['repetition_penalty']
