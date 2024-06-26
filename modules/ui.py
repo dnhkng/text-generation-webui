@@ -167,6 +167,7 @@ def list_interface_input_elements():
         'stream',
         'tfs',
         'top_a',
+        'layers_definition',
     ]
 
     # Chat elements

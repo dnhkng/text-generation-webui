@@ -183,7 +183,8 @@ def transformers_samplers():
         'add_bos_token',
         'skip_special_tokens',
         'auto_max_new_tokens',
-        'prompt_lookup_num_tokens'
+        'prompt_lookup_num_tokens',
+        # 'layers_definition',
     }
 
 
@@ -215,6 +216,7 @@ loaders_samplers = {
         'skip_special_tokens',
         'auto_max_new_tokens',
         'franken_layers',
+        'layers_definition',
     },
     'ExLlamav2_HF': {
         'temperature',
