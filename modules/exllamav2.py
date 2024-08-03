@@ -104,7 +104,9 @@ class Exllamav2Model:
         return self.model.forward(token_ids[:, -1:], self.cache, input_mask=None, loras=self.loras, **kwargs).float().cpu()
 
     def generate_with_streaming(self, prompt, state):
-        if state['layers_definition'] == '':
+        if 'layers_definition' not in state:
+            state['layers_definition'] = shared.args.franken_layers
+        elif state['layers_definition'] == '':
             state['layers_definition'] = shared.args.franken_layers
 
         self.apply_layer_changes(state)
