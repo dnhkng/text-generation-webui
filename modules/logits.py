@@ -13,18 +13,23 @@ global_scores = None
 
 
 def get_next_logits(*args, **kwargs):
-    if shared.args.idle_timeout > 0 and shared.model is None and shared.previous_model_name not in [None, 'None']:
-        shared.model, shared.tokenizer = load_model(shared.previous_model_name)
+    if shared.args.idle_timeout > 0 and shared.model is None and shared.model_name not in [None, 'None']:
+        shared.model, shared.tokenizer = load_model(shared.model_name)
 
-    shared.generation_lock.acquire()
+    needs_lock = not args[2]  # use_samplers
+    if needs_lock:
+        shared.generation_lock.acquire()
+
     try:
         result = _get_next_logits(*args, **kwargs)
     except Exception:
         traceback.print_exc()
         result = None
 
-    models.last_generation_time = time.time()
-    shared.generation_lock.release()
+    if needs_lock:
+        models.last_generation_time = time.time()
+        shared.generation_lock.release()
+
     return result
 
 
